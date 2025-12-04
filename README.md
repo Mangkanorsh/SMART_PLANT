@@ -15,7 +15,7 @@
 12. [Safety Features](#-safety-features)
 13. [Troubleshooting](#-troubleshooting)
 14. [API Reference](#-api-reference)
-15. [License](#-license)
+
 
 ---
 
