@@ -1,5 +1,5 @@
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
+#include <WiFiClientSecure.h> 
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <UniversalTelegramBot.h>
@@ -27,25 +27,26 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 // ==================== Calibration ====================
 const int SOIL_DRY = 4095;
 const int SOIL_WET = 1500;
-const int SOIL_THRESHOLD = 50;
-const int TEMP_THRESHOLD_HIGH = 35;  // Alert if above 35°C
-const int TEMP_THRESHOLD_LOW = 10;   // Alert if below 10°C
+// CHANGED: Removed 'const' so these can be changed via Telegram
+int SOIL_THRESHOLD = 50;
+int TEMP_THRESHOLD_HIGH = 35; // Alert if above 35°C
+int TEMP_THRESHOLD_LOW = 10;   // Alert if below 10°C
 
 // ==================== Configuration ====================
 // WiFi Credentials
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid = "";
+const char* password = "";
 
 // Telegram Bot
-#define BOT_TOKEN "YOUR_TELEGRAM_BOT_TOKEN"
-#define CHAT_ID "YOUR_TELEGRAM_CHAT_ID"
+#define BOT_TOKEN ""
+#define CHAT_ID ""
 const unsigned long BOT_MTBS = 1000; // Mean time between scan messages
 WiFiClientSecure client;
 UniversalTelegramBot bot(BOT_TOKEN, client);
 
 // Google Sheets - Script Deployment
-const char* GOOGLE_SCRIPT_ID = "YOUR_GOOGLE_SCRIPT_ID";
-const char* GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";
+const char* GOOGLE_SCRIPT_ID = "";
+const char* GOOGLE_SCRIPT_URL = "";
 
 // Web Server
 AsyncWebServer server(80);
@@ -61,11 +62,11 @@ int lightValue = 0;
 float temperature = 0;
 float humidity = 0;
 bool watering = false;
-bool manualMode = false;
+bool manualMode = true; // Set to true for Manual Mode by default
 String lastWatered = "Never";
 String systemStatus = "Normal";
-unsigned long waterStartTime = 0; 
-unsigned long WATER_DURATION = 5000;
+unsigned long waterStartTime = 0;
+unsigned long WATER_DURATION = 5000; 
 unsigned long lastBotScan = 0;
 unsigned long lastDataSend = 0;
 const unsigned long DATA_SEND_INTERVAL = 300000; // 5 minutes
@@ -187,7 +188,6 @@ const char index_html[] PROGMEM = R"rawliteral(
             fetch('/data')
                 .then(response => response.json())
                 .then(data => {
-                    // Update sensor values
                     document.getElementById('temp').innerHTML = data.temperature.toFixed(1);
                     document.getElementById('hum').innerHTML = data.humidity.toFixed(1);
                     document.getElementById('soil').innerHTML = data.soilMoisture;
@@ -195,19 +195,12 @@ const char index_html[] PROGMEM = R"rawliteral(
                     document.getElementById('status').innerHTML = data.systemStatus;
                     document.getElementById('lastWatered').innerHTML = data.lastWatered;
                     
-                    // Update watering status
-                    document.getElementById('wateringStatus').innerHTML = 
-                        data.watering ? 'ACTIVE' : 'INACTIVE';
-                    document.getElementById('wateringStatus').style.color = 
-                        data.watering ? '#10B981' : '#EF4444';
+                    document.getElementById('wateringStatus').innerHTML = data.watering ? 'ACTIVE' : 'INACTIVE';
+                    document.getElementById('wateringStatus').style.color = data.watering ? '#10B981' : '#EF4444';
                     
-                    // Update mode buttons
-                    document.getElementById('autoBtn').className = 
-                        data.manualMode ? 'btn mode-btn' : 'btn mode-btn active';
-                    document.getElementById('manualBtn').className = 
-                        data.manualMode ? 'btn mode-btn active' : 'btn mode-btn';
+                    document.getElementById('autoBtn').className = data.manualMode ? 'btn mode-btn' : 'btn mode-btn active';
+                    document.getElementById('manualBtn').className = data.manualMode ? 'btn mode-btn active' : 'btn mode-btn';
                     
-                    // Update status indicator
                     let indicator = document.getElementById('statusIndicator');
                     indicator.className = 'status-indicator ';
                     if (data.systemStatus.includes('Alert')) {
@@ -239,52 +232,44 @@ const char index_html[] PROGMEM = R"rawliteral(
                 });
         }
         
-        // Update data every 3 seconds
         setInterval(updateSensorData, 3000);
-        
-        // Initial load
         window.onload = updateSensorData;
     </script>
 </head>
 <body>
     <div class="container">
-        <h1>🌱 Smart Plant System</h1>
+        <h1>Smart Plant System</h1>
         
         <div class="grid">
-            <!-- Temperature Card -->
             <div class="card">
-                <h3>🌡️ Temperature</h3>
+                <h3>Temperature</h3>
                 <div class="sensor-value">
-                    <span id="temp">--</span><span class="unit">°C</span>
+                    <span id="temp">--</span><span class="unit"> C</span>
                 </div>
             </div>
             
-            <!-- Humidity Card -->
             <div class="card">
-                <h3>💧 Humidity</h3>
+                <h3>Humidity</h3>
                 <div class="sensor-value">
                     <span id="hum">--</span><span class="unit">%</span>
                 </div>
             </div>
             
-            <!-- Soil Moisture Card -->
             <div class="card">
-                <h3>🌱 Soil Moisture</h3>
+                <h3>Soil Moisture</h3>
                 <div class="sensor-value">
                     <span id="soil">--</span><span class="unit">%</span>
                 </div>
             </div>
             
-            <!-- Light Card -->
             <div class="card">
-                <h3>☀️ Light Level</h3>
+                <h3>Light Level</h3>
                 <div class="sensor-value">
                     <span id="light">--</span>
                 </div>
             </div>
         </div>
         
-        <!-- System Status -->
         <div class="card" style="grid-column: span 2;">
             <h3>System Status</h3>
             <p>
@@ -295,10 +280,8 @@ const char index_html[] PROGMEM = R"rawliteral(
             <p>Last Watered: <span id="lastWatered" style="font-weight: bold;">Never</span></p>
         </div>
         
-        <!-- Control Panel -->
         <div class="card" style="grid-column: span 2;">
             <h3>Control Panel</h3>
-            
             <div style="margin: 20px 0;">
                 <button id="autoBtn" class="btn mode-btn active" onclick="setMode('auto')">Auto Mode</button>
                 <button id="manualBtn" class="btn mode-btn" onclick="setMode('manual')">Manual Mode</button>
@@ -307,25 +290,23 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div>
                 <button class="btn btn-water" onclick="controlPump('start')" 
                         style="background: linear-gradient(135deg, #10B981, #047857);">
-                    💧 Start Watering
+                    Start Watering
                 </button>
                 <button class="btn btn-stop" onclick="controlPump('stop')">
-                    ⏹️ Stop Watering
+                    Stop Watering
                 </button>
             </div>
         </div>
         
-        <!-- Quick Actions -->
         <div class="card">
-            <h3>📱 Quick Actions</h3>
+            <h3>Quick Actions</h3>
             <button class="btn" onclick="controlPump('water5')">Water for 5s</button>
             <button class="btn" onclick="controlPump('water10')">Water for 10s</button>
             <button class="btn" onclick="controlPump('update')">Force Update</button>
         </div>
         
-        <!-- Telegram Commands -->
         <div class="card">
-            <h3>🤖 Telegram Commands</h3>
+            <h3>Telegram Commands</h3>
             <p style="text-align: left; font-size: 0.9em;">
                 • /status - Get current readings<br>
                 • /water - Manual watering<br>
@@ -341,11 +322,19 @@ const char index_html[] PROGMEM = R"rawliteral(
 
 // ==================== Setup Function ====================
 void setup() {
+  // SAFETY FIX: Move pin initialization to the very top.
+  // Changed logic to Active HIGH (LOW = OFF, HIGH = ON)
+  // based on symptom that previous HIGH signal kept pump running.
+  digitalWrite(RELAY_PIN, LOW);  // Force Relay OFF immediately
+  pinMode(RELAY_PIN, OUTPUT);    // Now safe to enable output
+  
+  // SAFETY DELAY: Wait 2 seconds for power to stabilize
+  delay(2000); 
+  
   Serial.begin(115200);
   
-  // Initialize pins
-  pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, HIGH); // Relay OFF initially
+  // SAFETY: Maximize WiFi power stability
+  WiFi.setSleep(false); 
   
   // Initialize OLED
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
@@ -360,9 +349,9 @@ void setup() {
   
   // Connect to WiFi
   connectToWiFi();
-  
+
   // Initialize Telegram Bot
-  client.setCACert(TELEGRAM_CERTIFICATE_ROOT);
+  client.setInsecure();
   
   // Initialize Web Server
   setupWebServer();
@@ -371,7 +360,7 @@ void setup() {
   configTime(0, 0, "pool.ntp.org");
   
   // Send startup message
-  sendTelegramMessage("🚀 Smart Plant System Started!\n" + getSystemInfo());
+  sendTelegramMessage("Smart Plant System Started!\n" + getSystemInfo());
 }
 
 // ==================== Main Loop ====================
@@ -379,6 +368,16 @@ void loop() {
   // Read sensors
   readSensors();
   
+  // SAFETY ENFORCER:
+  // Since we identified your relay is Active HIGH (High=On):
+  // If not watering, force LOW (OFF).
+  // If watering, force HIGH (ON).
+  if (!watering) {
+    digitalWrite(RELAY_PIN, LOW); // Force OFF
+  } else {
+    digitalWrite(RELAY_PIN, HIGH); // Force ON
+  }
+
   // Check for Telegram messages
   handleTelegramMessages();
   
@@ -432,9 +431,9 @@ void checkTemperatureAlerts() {
   static bool tempAlertSent = false;
   
   if (temperature > TEMP_THRESHOLD_HIGH && !tempAlertSent) {
-    String message = "🔥 HIGH TEMPERATURE ALERT!\n";
-    message += "Temperature: " + String(temperature, 1) + "°C\n";
-    message += "Threshold: " + String(TEMP_THRESHOLD_HIGH) + "°C";
+    String message = "HIGH TEMPERATURE ALERT!\n";
+    message += "Temperature: " + String(temperature, 1) + "C\n";
+    message += "Threshold: " + String(TEMP_THRESHOLD_HIGH) + "C";
     sendTelegramMessage(message);
     systemStatus = "Alert: High Temp";
     tempAlertSent = true;
@@ -448,7 +447,7 @@ void checkTemperatureAlerts() {
 void startWatering(String source) {
   watering = true;
   waterStartTime = millis();
-  digitalWrite(RELAY_PIN, LOW); // Relay ON
+  digitalWrite(RELAY_PIN, HIGH); // CHANGED: Relay ON (Active High)
   
   // Update last watered time
   struct tm timeinfo;
@@ -459,7 +458,7 @@ void startWatering(String source) {
   }
   
   // Send notification
-  String message = "💧 Watering Started!\n";
+  String message = "Watering Started!\n";
   message += "Source: " + source + "\n";
   message += "Soil Moisture: " + String(soilMoisturePercent) + "%";
   sendTelegramMessage(message);
@@ -470,9 +469,9 @@ void startWatering(String source) {
 void stopWatering() {
   if (watering) {
     watering = false;
-    digitalWrite(RELAY_PIN, HIGH); // Relay OFF
+    digitalWrite(RELAY_PIN, LOW); // CHANGED: Relay OFF (Active High)
     
-    String message = "✅ Watering Completed!\n";
+    String message = "Watering Completed!\n";
     message += "Duration: " + String((millis() - waterStartTime) / 1000) + "s\n";
     message += "Current Soil: " + String(soilMoisturePercent) + "%";
     sendTelegramMessage(message);
@@ -503,7 +502,8 @@ void updateDisplay() {
   display.print("Light:");
   display.println(lightValue);
   
-  display.setCursor(0, 40);
+  // ADJUSTED: Moved up to line 32 to make room for IP at the bottom
+  display.setCursor(0, 32); 
   display.print("Mode: ");
   display.println(manualMode ? "Manual" : "Auto");
   
@@ -517,6 +517,10 @@ void updateDisplay() {
     display.print("/");
     display.println(WATER_DURATION / 1000);
   }
+  
+  // NEW: Display IP Address at the bottom
+  display.setCursor(0, 56);
+  display.print(WiFi.localIP());
   
   display.display();
 }
@@ -562,7 +566,8 @@ void connectToWiFi() {
 void setupWebServer() {
   // Serve HTML page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/html", index_html);
+    // FIXED: Removed deprecated send_P, using standard send for PROGMEM
+    request->send(200, "text/html", index_html);
   });
   
   // API endpoint for sensor data
@@ -616,7 +621,7 @@ void setupWebServer() {
       String response = manualMode ? "Manual mode activated" : "Auto mode activated";
       request->send(200, "text/plain", response);
       
-      sendTelegramMessage("🔧 Mode changed to: " + mode);
+      sendTelegramMessage("Mode changed to: " + mode);
     }
   });
   
@@ -651,6 +656,10 @@ void handleTelegramMessages() {
           welcome += "/mode auto - Switch to auto mode\n";
           welcome += "/mode manual - Switch to manual mode\n";
           welcome += "/settings - View system settings\n";
+          welcome += "/duration <sec> - Set water duration\n";
+          welcome += "/set_soil <%> - Set soil threshold\n";
+          welcome += "/set_temp_high <C> - Set high temp alert\n";
+          welcome += "/set_temp_low <C> - Set low temp alert\n";
           welcome += "/help - Show this message";
           bot.sendMessage(chat_id, welcome, "");
         }
@@ -662,7 +671,7 @@ void handleTelegramMessages() {
         else if (text == "/water") {
           if (!watering) {
             startWatering("Telegram");
-            bot.sendMessage(chat_id, "💧 Watering started!", "");
+            bot.sendMessage(chat_id, "Watering started!", "");
           } else {
             bot.sendMessage(chat_id, "Watering already in progress", "");
           }
@@ -671,7 +680,7 @@ void handleTelegramMessages() {
         else if (text == "/stop") {
           if (watering) {
             stopWatering();
-            bot.sendMessage(chat_id, "✅ Watering stopped", "");
+            bot.sendMessage(chat_id, "Watering stopped", "");
           } else {
             bot.sendMessage(chat_id, "No watering in progress", "");
           }
@@ -680,18 +689,59 @@ void handleTelegramMessages() {
         else if (text.startsWith("/mode")) {
           if (text == "/mode auto") {
             manualMode = false;
-            bot.sendMessage(chat_id, "🔧 Auto mode activated", "");
+            bot.sendMessage(chat_id, "Auto mode activated", "");
           } else if (text == "/mode manual") {
             manualMode = true;
-            bot.sendMessage(chat_id, "🔧 Manual mode activated", "");
+            bot.sendMessage(chat_id, "Manual mode activated", "");
           }
         }
         
+        // Change Water Duration
+        else if (text.startsWith("/duration ")) {
+          String durationStr = text.substring(10); 
+          int durationSec = durationStr.toInt();
+          
+          if (durationSec > 0) {
+            WATER_DURATION = durationSec * 1000; 
+            bot.sendMessage(chat_id, "Water duration set to " + String(durationSec) + " seconds", "");
+          } else {
+            bot.sendMessage(chat_id, "Invalid duration. Usage: /duration 5", "");
+          }
+        }
+
+        // Change Soil Threshold
+        else if (text.startsWith("/set_soil ")) {
+          String valStr = text.substring(10);
+          int val = valStr.toInt();
+          if (val > 0 && val <= 100) {
+            SOIL_THRESHOLD = val;
+            bot.sendMessage(chat_id, "Soil threshold set to " + String(val) + "%", "");
+          } else {
+            bot.sendMessage(chat_id, "Invalid value. Use 0-100. Example: /set_soil 40", "");
+          }
+        }
+
+        // Change High Temp Alert
+        else if (text.startsWith("/set_temp_high ")) {
+          String valStr = text.substring(15);
+          int val = valStr.toInt();
+          TEMP_THRESHOLD_HIGH = val;
+          bot.sendMessage(chat_id, "High Temp Alert set to " + String(val) + "C", "");
+        }
+
+        // Change Low Temp Alert
+        else if (text.startsWith("/set_temp_low ")) {
+          String valStr = text.substring(14);
+          int val = valStr.toInt();
+          TEMP_THRESHOLD_LOW = val;
+          bot.sendMessage(chat_id, "Low Temp Alert set to " + String(val) + "C", "");
+        }
+        
         else if (text == "/settings") {
-          String settings = "⚙️ System Settings:\n";
+          String settings = "System Settings:\n";
           settings += "Soil Threshold: " + String(SOIL_THRESHOLD) + "%\n";
-          settings += "Temp Alert High: " + String(TEMP_THRESHOLD_HIGH) + "°C\n";
-          settings += "Temp Alert Low: " + String(TEMP_THRESHOLD_LOW) + "°C\n";
+          settings += "Temp Alert High: " + String(TEMP_THRESHOLD_HIGH) + "C\n";
+          settings += "Temp Alert Low: " + String(TEMP_THRESHOLD_LOW) + "C\n";
           settings += "Water Duration: " + String(WATER_DURATION/1000) + "s\n";
           settings += "Current Mode: " + String(manualMode ? "Manual" : "Auto");
           bot.sendMessage(chat_id, settings, "");
@@ -715,15 +765,17 @@ void sendTelegramMessage(String message) {
 }
 
 String getSystemInfo() {
-  String info = "📊 System Status:\n";
-  info += "Temperature: " + String(temperature, 1) + "°C\n";
+  String info = "System Status:\n";
+  info += "Temperature: " + String(temperature, 1) + "C\n";
   info += "Humidity: " + String(humidity, 1) + "%\n";
   info += "Soil Moisture: " + String(soilMoisturePercent) + "%\n";
   info += "Light Level: " + String(lightValue) + "\n";
   info += "Water Pump: " + String(watering ? "ACTIVE" : "INACTIVE") + "\n";
   info += "Mode: " + String(manualMode ? "Manual" : "Auto") + "\n";
   info += "Last Watered: " + lastWatered + "\n";
-  info += "Status: " + systemStatus;
+  info += "Status: " + systemStatus + "\n";
+  // NEW: Added IP address to Telegram status
+  info += "IP: " + WiFi.localIP().toString(); 
   return info;
 }
 
